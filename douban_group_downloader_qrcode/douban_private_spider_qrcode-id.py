@@ -1,15 +1,11 @@
-import datetime
 import os
 import json
-import random
 import re
-
-import pandas as pd
 import requests
 from bs4 import BeautifulSoup
 import time
 from parsel import Selector
-
+import pandas as pd
 
 def login(ss, ua_headers):
     # 登录的网址
@@ -26,7 +22,7 @@ def login(ss, ua_headers):
             # 加载图片链接
             qrcode_url = json.loads(response.text)['payload']['img']
             print("请一定在2分钟内将下面的链接拷贝至浏览器打开，然后使用手机豆瓣app扫码：" + qrcode_url)
-            print("因默认后台无提示，20s后将自动启动下载！")
+            print("因默认后台无提示，2分钟后将自动启动下载！")
             qrcode_name = re.findall(r"-qrlogin(.*)\.png", qrcode_url)[0]
             time.sleep(20)
             login_url = 'https://accounts.douban.com/j/mobile/login/qrlogin_status?ck=&code=douban-qrlogin' + qrcode_name
@@ -34,7 +30,6 @@ def login(ss, ua_headers):
         return True
     except:
         return False
-
 
 def get_discussions(ss, ua_headers, groupid, groupname):
     print("准备开始下载 {}_{} 小组的内容。".format(groupname, groupid))
@@ -44,7 +39,7 @@ def get_discussions(ss, ua_headers, groupid, groupname):
     while True:
         response = ss.get(url=group_url, headers=ua_headers)
         # 获取小组页面中所有帖子的链接
-        soup = BeautifulSoup(response.text, 'html.parser')
+        soup = BeautifulSoup(response.text,'html.parser')
         results = soup.find_all('td', attrs={'class': 'title'})
         for result in results:
             s_result = result.find('a')
@@ -62,24 +57,28 @@ def get_discussions(ss, ua_headers, groupid, groupname):
         #     break
         # group_url = next_link['href']
         return discussion_urls
-
-
+ 
 def save_discussions(ss, ua_headers,discussion_urls):
-    csv_list = list()
-    # 开始保存帖子
-    index = 1
-    for discussion_url in discussion_urls:
-        print("[{}/{}]保存帖子：{}".format(index, len(discussion_urls), discussion_url['title']))
-        # 保存一个帖子
-        response = ss.get(discussion_url['link'], headers=ua_headers)
-        soup = Selector(response.text)
-        text = soup.xpath("//div[@class='rich-content topic-richtext']/p/text()").getall()[0] if soup.xpath("//div[@class='rich-content topic-richtext']/p/text()").getall() else ""
-        create_time = soup.xpath("//span[contains(@class,'create-time')]/text()").getall()[0]  if soup.xpath("//span[contains(@class,'create-time')]/text()").getall() else ""
-        csv_list.append({"create_time": create_time, "title": discussion_url['title'], "text": text,"select": discussion_url["select"],"link":discussion_url["link"]})
-        index += 1
-    return csv_list
+        csv_list = list()
+        # 开始保存帖子
+        index = 1
+        for discussion_url in discussion_urls:
+            print("[{}/{}]保存帖子：{}".format(index, len(discussion_urls), discussion_url['title']))
+            # 保存一个帖子
+            response = ss.get(discussion_url['link'], headers=ua_headers)
+            time.sleep(1)
+            soup = Selector(response.text)
+            text = soup.xpath("//div[@class='rich-content topic-richtext']/p/text()").getall()[0] if soup.xpath(
+                "//div[@class='rich-content topic-richtext']/p/text()").getall() else ""
+            create_time = soup.xpath("//span[contains(@class,'create-time')]/text()").getall()[0] if soup.xpath(
+                "//span[contains(@class,'create-time')]/text()").getall() else ""
+            csv_list.append({"create_time": create_time, "title": discussion_url['title'], "text": text,
+                             "select": discussion_url["select"], "link": discussion_url["link"]})
+            index += 1
+        return csv_list
 
 def main():
+
     config = json.load(open('config.json', 'r', encoding="utf-8"))
 
     # 创建session保存登录状态
@@ -89,35 +88,24 @@ def main():
     }
 
     # 登录
-
-    # 携带登陆成功的cookie去请求
     state = login(ss, ua_headers)
-    group_list = list()
     result_list = list()
+    # 携带登陆成功的cookie去请求
     if state:
         for group in config['grouplist']:
-            response = ss.get(url='https://www.douban.com/group/' + group["grouptitle"], headers=ua_headers)
-            soup = BeautifulSoup(response.text, 'html.parser')
-            content_page = soup.find_all('div', attrs={'class': 'title'})
-            if content_page:
-                for i in content_page:
-                    link = i.find('a')['href']
-                    title = i.find('a').string
-                    group_list.append([link, title])
-        for group in group_list[1:3]:
-            groupid = group[0].split('/')[-2]
-            groupname = group[1]
+            groupid = group['groupid']
+            groupname = group['groupname']
             discussion_urls = get_discussions(ss, ua_headers, groupid, groupname)
-            time.sleep(1)
             result = save_discussions(ss, ua_headers,discussion_urls)
             result_list.extend(result)
         path = os.path.dirname(config["outputpath"])
         if not os.path.exists(path ):
             os.mkdir(path )
         pd1 = pd.DataFrame(result_list)
-        pd1.to_excel(config["outputpath"],sheet_name="Sheet1")
-
-
+        pd1.to_excel(config["outputpath"],sheet_name="Sheet1",index=False)
+    
+    return
 
 if __name__ == '__main__':
     main()
+

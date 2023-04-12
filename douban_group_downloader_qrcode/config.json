@@ -1,9 +1,12 @@
-{
+{	"outputpath": "./outfile/text2.xlsx",
 	"grouplist":
 		[
 			{
 				"grouptitle": "explore/culture",
-				"groupnumber": 5
+				"groupnumber": 5,
+				"groupid": "mooonset",
+				"groupname": "SD原单强迫症疗养院"
 			}
+
 		]
 }
